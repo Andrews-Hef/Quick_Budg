@@ -11,15 +11,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.borg.budget.ui.viewmodels.BudgetViewModel
+import com.borg.budget.ui.screens.BudgetScreen
+import com.borg.budget.ui.screens.ExpenseScreen
 import com.borg.budget.ui.theme.Quick_BudgTheme
 
 class MainActivity : ComponentActivity() {
@@ -28,16 +30,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Quick_BudgTheme {
-                Quick_BudgApp()
+                val budgetViewModel: BudgetViewModel = viewModel()
+                Quick_BudgApp(budgetViewModel)
             }
         }
     }
 }
 
-@PreviewScreenSizes
 @Composable
-fun Quick_BudgApp() {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+fun Quick_BudgApp(viewModel: BudgetViewModel) {
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.BUDGET) }
+    
+    val budgetConfig by viewModel.budgetConfig.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -57,10 +62,32 @@ fun Quick_BudgApp() {
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
+            when (currentDestination) {
+                AppDestinations.BUDGET -> {
+                    BudgetScreen(
+                        totalIncome = budgetConfig.totalIncome,
+                        onIncomeChange = { viewModel.updateIncome(it) },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
+                AppDestinations.EXPENSES -> {
+                    ExpenseScreen(
+                        totalIncome = budgetConfig.totalIncome,
+                        transactions = transactions,
+                        onAddTransaction = { title, amt, cat, isSub, isDebt ->
+                            viewModel.addTransaction(title, amt, cat, isSub, isDebt)
+                        },
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
+                else -> {
+                    Text(
+                        text = "Page en cours de développement",
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
+            }
         }
     }
 }
@@ -69,23 +96,7 @@ enum class AppDestinations(
     val label: String,
     val icon: Int,
 ) {
-    HOME("Home", R.drawable.ic_home),
-    FAVORITES("Favorites", R.drawable.ic_favorite),
-    PROFILE("Profile", R.drawable.ic_account_box),
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    Quick_BudgTheme {
-        Greeting("Android")
-    }
+    BUDGET("Budget", R.drawable.ic_home),
+    EXPENSES("Dépenses", R.drawable.ic_favorite),
+    PROFILE("Profil", R.drawable.ic_account_box),
 }
