@@ -4,12 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.borg.budget.data.*
+import com.borg.budget.notifications.NotificationHelper
 import com.borg.budget.ui.models.ExpenseCategory
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = BudgetDatabase.getDatabase(application).budgetDao()
+    private val notificationHelper = NotificationHelper(application)
 
     val budgetConfig: StateFlow<BudgetConfigEntity> = dao.getBudgetConfig()
         .map { it ?: BudgetConfigEntity() }
@@ -19,6 +21,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val subscriptions: StateFlow<List<SubscriptionEntity>> = dao.getActiveSubscriptions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val holidays: StateFlow<List<HolidayEntity>> = dao.getAllHolidays()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateIncome(income: Double) {
@@ -39,6 +44,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     isDebt = isDebt
                 )
             )
+            
+            // Notification logic for low budget
+            val totalIncome = budgetConfig.value.totalIncome
+            val currentTotalSpent = transactions.value.sumOf { it.amount } + amount
+            val remaining = totalIncome - currentTotalSpent
+            
+            if (remaining < (totalIncome * 0.10) && remaining > 0) {
+                notificationHelper.sendBudgetAlert(remaining)
+            }
         }
     }
 
@@ -48,16 +62,22 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addSubscription(name: String, price: Double, day: Int, category: ExpenseCategory) {
+    fun addHoliday(title: String, startDate: Long, endDate: Long, daysCount: Int) {
         viewModelScope.launch {
-            dao.insertSubscription(
-                SubscriptionEntity(
-                    name = name,
-                    basePrice = price,
-                    dayOfPayment = day,
-                    category = category.name
+            dao.insertHoliday(
+                HolidayEntity(
+                    title = title,
+                    startDate = startDate,
+                    endDate = endDate,
+                    daysCount = daysCount
                 )
             )
+        }
+    }
+
+    fun deleteHoliday(holiday: HolidayEntity) {
+        viewModelScope.launch {
+            dao.deleteHoliday(holiday)
         }
     }
 }

@@ -31,4 +31,14 @@ interface BudgetDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateBudgetConfig(config: BudgetConfigEntity)
+
+    // Holidays
+    @Query("SELECT * FROM holidays ORDER BY startDate DESC")
+    fun getAllHolidays(): Flow<List<HolidayEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHoliday(holiday: HolidayEntity)
+
+    @Delete
+    suspend fun deleteHoliday(holiday: HolidayEntity)
 }

@@ -1,12 +1,15 @@
 package com.borg.budget.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,10 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.borg.budget.data.TransactionEntity
 import com.borg.budget.ui.models.ExpenseCategory
 
@@ -32,65 +37,104 @@ fun ExpenseScreen(
     modifier: Modifier = Modifier
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    ),
-                    shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                )
-                .padding(24.dp)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) showScanner = true
+    }
+
+    if (showScanner) {
+        ScannerScreen(
+            onReceiptScanned = { merchant, amount ->
+                onAddTransaction(merchant, amount, ExpenseCategory.PLEASURE, false, false)
+                showScanner = false
+            },
+            onClose = { showScanner = false }
+        )
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            Column {
-                Text("Suivi des Dépenses", color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(16.dp))
-                
-                ExpenseCategory.entries.forEach { cat ->
-                    val allocated = totalIncome * cat.percentage
-                    val spent = transactions.filter { it.category == cat.name }.sumOf { it.amount }
-                    ProfessionalProgressRow(cat, spent, allocated)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.secondary,
+                                MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ),
+                        shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                    )
+                    .padding(24.dp)
+            ) {
+                Column {
+                    Text("Suivi des Dépenses", color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(16.dp))
+                    
+                    ExpenseCategory.entries.forEach { cat ->
+                        val allocated = totalIncome * cat.percentage
+                        val spent = transactions.filter { it.category == cat.name }.sumOf { it.amount }
+                        ProfessionalProgressRow(cat, spent, allocated)
+                    }
                 }
             }
-        }
 
-        Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
-        Text("Transactions récentes", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 24.dp))
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
-        ) {
-            items(transactions) { transaction ->
-                ProfessionalExpenseItem(
-                    transaction = transaction,
-                    onDelete = { onDeleteTransaction(transaction) }
-                )
-            }
-        }
-
-        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-            Button(
-                onClick = { showAddDialog = true },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Nouvelle transaction", style = MaterialTheme.typography.titleMedium)
+                Text("Transactions récentes", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                
+                // OCR Button
+                FilledIconButton(
+                    onClick = {
+                        when (PackageManager.PERMISSION_GRANTED) {
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) -> {
+                                showScanner = true
+                            }
+                            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Icon(Icons.Default.PhotoCamera, "Scanner un ticket")
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                items(transactions) { transaction ->
+                    ProfessionalExpenseItem(
+                        transaction = transaction,
+                        onDelete = { onDeleteTransaction(transaction) }
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = { showAddDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                ) {
+                    Icon(Icons.Default.Add, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Nouvelle transaction", style = MaterialTheme.typography.titleMedium)
+                }
             }
         }
     }
@@ -173,7 +217,7 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onConfirm: (String, Double, ExpenseC
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Montant") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), prefix = { Text("€ ") })
+                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Montant") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), prefix = { Text("€ ") })
                 Text("Catégorie :", style = MaterialTheme.typography.labelLarge)
                 Column {
                     ExpenseCategory.entries.forEach { cat ->

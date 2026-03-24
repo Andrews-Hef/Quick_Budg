@@ -6,8 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [TransactionEntity::class, SubscriptionEntity::class, BudgetConfigEntity::class],
-    version = 1,
+    entities = [
+        TransactionEntity::class,
+        SubscriptionEntity::class,
+        BudgetConfigEntity::class,
+        HolidayEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class BudgetDatabase : RoomDatabase() {
@@ -23,7 +28,9 @@ abstract class BudgetDatabase : RoomDatabase() {
                     context.applicationContext,
                     BudgetDatabase::class.java,
                     "budget_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }
