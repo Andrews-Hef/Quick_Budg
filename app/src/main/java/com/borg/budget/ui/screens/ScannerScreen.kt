@@ -3,15 +3,14 @@ package com.borg.budget.ui.screens
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,12 +21,13 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.borg.budget.ui.models.ExpenseCategory
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 @OptIn(ExperimentalGetImage::class)
 @Composable
@@ -42,59 +42,74 @@ fun ScannerScreen(
     var isProcessing by remember { mutableStateOf(false) }
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
 
+    val previewView = remember { PreviewView(context) }
+    val imageCapture = remember { 
+        ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build() 
+    }
+    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+    LaunchedEffect(Unit) {
+        val cameraProvider = context.getCameraProvider()
+        val preview = Preview.Builder().build().also {
+            it.surfaceProvider = previewView.surfaceProvider
+        }
+
+        try {
+            cameraProvider.unbindAll()
+            cameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                cameraSelector,
+                preview,
+                imageCapture
+            )
+        } catch (e: Exception) {
+            Log.e("Scanner", "Binding failed", e)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            factory = { ctx ->
-                val previewView = PreviewView(ctx)
-                val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(ctx)
-                
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
-                    }
-
-                    val imageCapture = ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                        .build()
-
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner, cameraSelector, preview, imageCapture
-                        )
-                        
-                        // Action de capture
-                        previewView.setOnClickListener {
-                            if (isProcessing) return@setOnClickListener
-                            isProcessing = true
-                            
-                            imageCapture.takePicture(
-                                cameraExecutor,
-                                object : ImageCapture.OnImageCapturedCallback() {
-                                    override fun onCaptureSuccess(image: ImageProxy) {
-                                        processImage(image, recognizer) { title, amount ->
-                                            onReceiptScanned(title, amount)
-                                            isProcessing = false
-                                        }
-                                    }
-                                    override fun onError(exception: ImageCaptureException) {
-                                        Log.e("Scanner", "Capture failed", exception)
-                                        isProcessing = false
-                                    }
-                                }
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e("Scanner", "Use case binding failed", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-                previewView
-            },
+            factory = { previewView },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Capture trigger area
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 100.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Button(
+                onClick = {
+                    if (isProcessing) return@Button
+                    isProcessing = true
+                    
+                    imageCapture.takePicture(
+                        cameraExecutor,
+                        object : ImageCapture.OnImageCapturedCallback() {
+                            override fun onCaptureSuccess(image: ImageProxy) {
+                                processImage(image, recognizer) { title, amount ->
+                                    onReceiptScanned(title, amount)
+                                    isProcessing = false
+                                }
+                            }
+                            override fun onError(exception: ImageCaptureException) {
+                                Log.e("Scanner", "Capture failed", exception)
+                                isProcessing = false
+                            }
+                        }
+                    )
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.5f))
+            ) {
+                Text("SCANNER", color = Color.Black)
+            }
+        }
 
         // Overlay UI
         Column(
@@ -106,31 +121,33 @@ fun ScannerScreen(
                 IconButton(onClick = onClose, modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)) {
                     Icon(Icons.Default.Close, null, tint = Color.White)
                 }
-                IconButton(onClick = { /* Flash */ }, modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)) {
+                IconButton(onClick = { /* Flash control could be added here */ }, modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)) {
                     Icon(Icons.Default.FlashOn, null, tint = Color.White)
                 }
             }
 
-            // Scanner Frame
-            Box(
-                modifier = Modifier
-                    .size(280.dp, 400.dp)
-                    .background(Color.Transparent)
-                    .padding(2.dp)
-            ) {
-                // Border/Corners could be added here
-            }
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (isProcessing) {
+            if (isProcessing) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
-                    Text("Analyse du ticket...", color = Color.White, modifier = Modifier.padding(top = 8.dp))
-                } else {
-                    Text("Tapez sur l'écran pour scanner", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                    Text("Analyse...", color = Color.White, modifier = Modifier.padding(top = 8.dp))
                 }
-                Spacer(Modifier.height(32.dp))
             }
         }
+    }
+
+    // Cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraExecutor.shutdown()
+        }
+    }
+}
+
+private suspend fun android.content.Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
+    ProcessCameraProvider.getInstance(this).also { future ->
+        future.addListener({
+            continuation.resume(future.get())
+        }, ContextCompat.getMainExecutor(this))
     }
 }
 
@@ -149,7 +166,6 @@ private fun processImage(
                 var totalAmount = 0.0
                 var merchant = "Magasin inconnu"
 
-                // Basic Logic to find amount (Look for "TOTAL" or numbers with decimal)
                 val amountRegex = """\d+[\.,]\d{2}""".toRegex()
                 
                 for (line in lines) {
@@ -157,12 +173,12 @@ private fun processImage(
                     if (upperLine.contains("TOTAL") || upperLine.contains("EUR") || upperLine.contains("€")) {
                         val match = amountRegex.find(line)
                         if (match != null) {
-                            totalAmount = match.value.replace(",", ".").toDouble()
+                            totalAmount = match.value.replace(",", ".").toDoubleOrNull() ?: 0.0
                         }
                     }
                 }
                 
-                if (lines.isNotEmpty()) merchant = lines[0] // Often the first line is the name
+                if (lines.isNotEmpty()) merchant = lines[0]
 
                 onResult(merchant, totalAmount)
                 imageProxy.close()
@@ -170,5 +186,7 @@ private fun processImage(
             .addOnFailureListener {
                 imageProxy.close()
             }
+    } else {
+        imageProxy.close()
     }
 }
