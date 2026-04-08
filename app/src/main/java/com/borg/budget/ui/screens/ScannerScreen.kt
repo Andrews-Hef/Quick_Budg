@@ -8,6 +8,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FlashOn
@@ -18,9 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.borg.budget.data.models.Receipt
+import com.borg.budget.utils.ReceiptParser
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -32,21 +36,24 @@ import kotlin.coroutines.suspendCoroutine
 @OptIn(ExperimentalGetImage::class)
 @Composable
 fun ScannerScreen(
-    onReceiptScanned: (String, Double) -> Unit,
+    onReceiptScanned: (storeName: String, dateTime: String?, total: Double) -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
-    
+
     var isProcessing by remember { mutableStateOf(false) }
+    var scannedReceipt by remember { mutableStateOf<Receipt?>(null) }
+
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    val parser = remember { ReceiptParser(context) }
 
     val previewView = remember { PreviewView(context) }
-    val imageCapture = remember { 
+    val imageCapture = remember {
         ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build() 
+            .build()
     }
     val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -55,73 +62,71 @@ fun ScannerScreen(
         val preview = Preview.Builder().build().also {
             it.surfaceProvider = previewView.surfaceProvider
         }
-
         try {
             cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                preview,
-                imageCapture
-            )
+            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, imageCapture)
         } catch (e: Exception) {
             Log.e("Scanner", "Binding failed", e)
         }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize()
-        )
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 
-        // Capture trigger area
+        // Bouton de scan
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = 100.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Button(
-                onClick = {
-                    if (isProcessing) return@Button
-                    isProcessing = true
-                    
-                    imageCapture.takePicture(
-                        cameraExecutor,
-                        object : ImageCapture.OnImageCapturedCallback() {
-                            override fun onCaptureSuccess(image: ImageProxy) {
-                                processImage(image, recognizer) { title, amount ->
-                                    onReceiptScanned(title, amount)
+            if (scannedReceipt == null) {
+                Button(
+                    onClick = {
+                        if (isProcessing) return@Button
+                        isProcessing = true
+                        imageCapture.takePicture(
+                            cameraExecutor,
+                            object : ImageCapture.OnImageCapturedCallback() {
+                                override fun onCaptureSuccess(image: ImageProxy) {
+                                    processImage(image, recognizer, parser) { receipt ->
+                                        scannedReceipt = receipt
+                                        isProcessing = false
+                                    }
+                                }
+                                override fun onError(exception: ImageCaptureException) {
+                                    Log.e("Scanner", "Capture failed", exception)
                                     isProcessing = false
                                 }
                             }
-                            override fun onError(exception: ImageCaptureException) {
-                                Log.e("Scanner", "Capture failed", exception)
-                                isProcessing = false
-                            }
-                        }
-                    )
-                },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.5f))
-            ) {
-                Text("SCANNER", color = Color.Black)
+                        )
+                    },
+                    modifier = Modifier.padding(bottom = 32.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.5f))
+                ) {
+                    Text("SCANNER LE TICKET", color = Color.Black)
+                }
             }
         }
 
-        // Overlay UI
+        // Overlay : boutons fermer / flash
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onClose, modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)) {
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)
+                ) {
                     Icon(Icons.Default.Close, null, tint = Color.White)
                 }
-                IconButton(onClick = { /* Flash control could be added here */ }, modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)) {
+                IconButton(
+                    onClick = { /* Flash control */ },
+                    modifier = Modifier.background(Color.Black.copy(0.5f), CircleShape)
+                ) {
                     Icon(Icons.Default.FlashOn, null, tint = Color.White)
                 }
             }
@@ -129,58 +134,133 @@ fun ScannerScreen(
             if (isProcessing) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
-                    Text("Analyse...", color = Color.White, modifier = Modifier.padding(top = 8.dp))
+                    Text(
+                        "Analyse du ticket...",
+                        color = Color.White,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
+
+        // Panneau de confirmation après scan
+        scannedReceipt?.let { receipt ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            "Ticket scanné",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+
+                        ReceiptInfoRow(label = "Boutique", value = receipt.storeName ?: "Non détecté")
+                        ReceiptInfoRow(
+                            label = "Date",
+                            value = buildString {
+                                append(receipt.date ?: "Non détectée")
+                                if (receipt.time != null) append("  ${receipt.time}")
+                            }
+                        )
+                        ReceiptInfoRow(
+                            label = "Total",
+                            value = receipt.totalAmount?.let { "%.2f €".format(it) } ?: "Non détecté"
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { scannedReceipt = null },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Rescanner")
+                            }
+                            Button(
+                                onClick = {
+                                    val dateTime = buildString {
+                                        if (receipt.date != null) append(receipt.date)
+                                        if (receipt.time != null) append(" ${receipt.time}")
+                                    }.takeIf { it.isNotBlank() }
+                                    onReceiptScanned(
+                                        receipt.storeName ?: "Magasin inconnu",
+                                        dateTime,
+                                        receipt.totalAmount ?: 0.0
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Confirmer")
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Cleanup
     DisposableEffect(Unit) {
-        onDispose {
-            cameraExecutor.shutdown()
-        }
+        onDispose { cameraExecutor.shutdown() }
     }
 }
 
-private suspend fun android.content.Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
-    ProcessCameraProvider.getInstance(this).also { future ->
-        future.addListener({
-            continuation.resume(future.get())
-        }, ContextCompat.getMainExecutor(this))
+@Composable
+private fun ReceiptInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            value,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp)
+        )
     }
+    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
 }
+
+private suspend fun android.content.Context.getCameraProvider(): ProcessCameraProvider =
+    suspendCoroutine { continuation ->
+        ProcessCameraProvider.getInstance(this).also { future ->
+            future.addListener({
+                continuation.resume(future.get())
+            }, ContextCompat.getMainExecutor(this))
+        }
+    }
 
 @OptIn(ExperimentalGetImage::class)
 private fun processImage(
     imageProxy: ImageProxy,
     recognizer: com.google.mlkit.vision.text.TextRecognizer,
-    onResult: (String, Double) -> Unit
+    parser: ReceiptParser,
+    onResult: (Receipt) -> Unit
 ) {
     val mediaImage = imageProxy.image
     if (mediaImage != null) {
         val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
         recognizer.process(image)
             .addOnSuccessListener { visionText ->
-                val lines = visionText.text.split("\n")
-                var totalAmount = 0.0
-                var merchant = "Magasin inconnu"
-
-                val amountRegex = """\d+[\.,]\d{2}""".toRegex()
-                
-                for (line in lines) {
-                    val upperLine = line.uppercase()
-                    if (upperLine.contains("TOTAL") || upperLine.contains("EUR") || upperLine.contains("€")) {
-                        val match = amountRegex.find(line)
-                        if (match != null) {
-                            totalAmount = match.value.replace(",", ".").toDoubleOrNull() ?: 0.0
-                        }
-                    }
-                }
-                
-                if (lines.isNotEmpty()) merchant = lines[0]
-
-                onResult(merchant, totalAmount)
+                val receipt = parser.parse(visionText.text)
+                onResult(receipt)
                 imageProxy.close()
             }
             .addOnFailureListener {

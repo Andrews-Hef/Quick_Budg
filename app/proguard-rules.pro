@@ -19,3 +19,18 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# ML Kit Text Recognition
+-keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }
+-keep class com.google.mlkit.vision.text.** { *; }
+
+# Room Database
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    <init>(...);
+}
+-keep class * extends androidx.room.RoomDatabase
+-keep class androidx.room.Entity
+-keep class androidx.room.Dao
+
+# CameraX
+-keep class androidx.camera.core.** { *; }
+-dontwarn androidx.camera.core.**

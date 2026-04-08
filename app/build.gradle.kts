@@ -38,12 +38,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true // Activé pour la production
+            isMinifyEnabled = false // Activé pour la production
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

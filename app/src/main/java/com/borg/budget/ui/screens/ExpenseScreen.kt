@@ -48,7 +48,7 @@ fun ExpenseScreen(
 
     if (showScanner) {
         ScannerScreen(
-            onReceiptScanned = { merchant, amount ->
+            onReceiptScanned = { merchant, _, amount ->
                 onAddTransaction(merchant, amount, ExpenseCategory.PLEASURE, false, false)
                 showScanner = false
             },
