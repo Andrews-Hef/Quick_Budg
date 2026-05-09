@@ -1,57 +1,65 @@
 package com.borg.budget.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary               = SkyPrimary,
+    onPrimary             = Color.White,
+    primaryContainer      = Color(0xFFBBDEFB),
+    onPrimaryContainer    = Color(0xFF001D36),
+    secondary             = SkySecondary,
+    onSecondary           = Color.White,
+    secondaryContainer    = Color(0xFFE8EAF6),
+    onSecondaryContainer  = Color(0xFF1A237E),
+    tertiary              = SkyTertiary,
+    onTertiary            = Color.White,
+    tertiaryContainer     = Color(0xFFEDE7F6),
+    onTertiaryContainer   = Color(0xFF1A0050),
+    background            = SkyBackground,
+    onBackground          = Color(0xFF1A1C2E),
+    surface               = SkySurface,
+    onSurface             = Color(0xFF1A1C2E),
+    surfaceVariant        = Color(0xFFEEF2FF),
+    onSurfaceVariant      = Color(0xFF44464F),
+    outline               = SkyOutline,
+    error                 = Color(0xFFE53935),
+    onError               = Color.White,
+)
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val DarkColorScheme = darkColorScheme(
+    primary               = SkyPrimaryLight,
+    onPrimary             = Color(0xFF003258),
+    primaryContainer      = Color(0xFF004881),
+    onPrimaryContainer    = Color(0xFFD1E4FF),
+    secondary             = Color(0xFF9FA8DA),
+    onSecondary           = Color(0xFF1A237E),
+    secondaryContainer    = Color(0xFF303F9F),
+    onSecondaryContainer  = Color(0xFFE8EAF6),
+    tertiary              = Color(0xFFCE93D8),
+    onTertiary            = Color(0xFF1A0050),
+    background            = DarkBackground,
+    onBackground          = Color(0xFFE8EAF6),
+    surface               = DarkSurface,
+    onSurface             = Color(0xFFE8EAF6),
+    surfaceVariant        = DarkSurfaceVar,
+    onSurfaceVariant      = Color(0xFFCAC4D0),
+    outline               = Color(0xFF605D71),
+    error                 = Color(0xFFEF5350),
+    onError               = Color.White,
 )
 
 @Composable
 fun Quick_BudgTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
         typography = Typography,
         content = content
     )

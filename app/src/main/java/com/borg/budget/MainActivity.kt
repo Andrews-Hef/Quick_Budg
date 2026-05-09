@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -34,7 +36,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun Quick_BudgApp(viewModel: BudgetViewModel) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.DASHBOARD) }
@@ -82,44 +84,53 @@ fun Quick_BudgApp(viewModel: BudgetViewModel) {
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.DASHBOARD -> DashboardScreen(
-                    totalIncome = budgetConfig.totalIncome,
-                    transactions = transactions,
-                    subscriptions = subscriptions,
-                    holidays = holidays,
-                    totalHolidayQuota = budgetConfig.totalHolidays,
-                    onNavigateToHolidays = { showHolidays = true },
-                    modifier = Modifier.padding(innerPadding)
-                )
-                AppDestinations.BUDGET -> BudgetScreen(
-                    totalIncome = budgetConfig.totalIncome,
-                    onIncomeChange = { viewModel.updateIncome(it) },
-                    modifier = Modifier.padding(innerPadding)
-                )
-                AppDestinations.EXPENSES -> ExpenseScreen(
-                    totalIncome = budgetConfig.totalIncome,
-                    transactions = transactions,
-                    onAddTransaction = { title, amt, cat, isSub, isDebt ->
-                        viewModel.addTransaction(title, amt, cat, isSub, isDebt)
-                    },
-                    onDeleteTransaction = { viewModel.deleteTransaction(it) },
-                    modifier = Modifier.padding(innerPadding)
-                )
-                AppDestinations.SUBSCRIPTIONS -> SubscriptionScreen(
-                    subscriptions = subscriptions,
-                    notifyDays = budgetConfig.subscriptionNotifyDays,
-                    onAddSubscription = { name, amt, day, freq, cat, bm ->
-                        viewModel.addSubscription(name, amt, day, freq, cat, bm)
-                    },
-                    onDeleteSubscription = { viewModel.deleteSubscription(it) },
-                    onNotifyDaysChange = { viewModel.updateNotifyDays(it) },
-                    modifier = Modifier.padding(innerPadding)
-                )
-                AppDestinations.CALENDAR -> CalendarScreen(
-                    transactions = transactions,
-                    modifier = Modifier.padding(innerPadding)
-                )
+            AnimatedContent(
+                targetState = currentDestination,
+                transitionSpec = {
+                    fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 16 } togetherWith
+                    fadeOut(tween(150))
+                },
+                label = "screen_transition"
+            ) { destination ->
+                when (destination) {
+                    AppDestinations.DASHBOARD -> DashboardScreen(
+                        totalIncome = budgetConfig.totalIncome,
+                        transactions = transactions,
+                        subscriptions = subscriptions,
+                        holidays = holidays,
+                        totalHolidayQuota = budgetConfig.totalHolidays,
+                        onNavigateToHolidays = { showHolidays = true },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.BUDGET -> BudgetScreen(
+                        totalIncome = budgetConfig.totalIncome,
+                        onIncomeChange = { viewModel.updateIncome(it) },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.EXPENSES -> ExpenseScreen(
+                        totalIncome = budgetConfig.totalIncome,
+                        transactions = transactions,
+                        onAddTransaction = { title, amt, cat, isSub, isDebt ->
+                            viewModel.addTransaction(title, amt, cat, isSub, isDebt)
+                        },
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.SUBSCRIPTIONS -> SubscriptionScreen(
+                        subscriptions = subscriptions,
+                        notifyDays = budgetConfig.subscriptionNotifyDays,
+                        onAddSubscription = { name, amt, day, freq, cat, bm ->
+                            viewModel.addSubscription(name, amt, day, freq, cat, bm)
+                        },
+                        onDeleteSubscription = { viewModel.deleteSubscription(it) },
+                        onNotifyDaysChange = { viewModel.updateNotifyDays(it) },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.CALENDAR -> CalendarScreen(
+                        transactions = transactions,
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
             }
         }
     }
