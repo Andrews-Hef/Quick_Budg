@@ -23,7 +23,9 @@ data class SubscriptionEntity(
     val basePrice: Double,
     val dayOfPayment: Int,
     val category: String,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val frequency: String = "MONTHLY",
+    val billingMonth: Int = 0
 )
 
 @Entity(tableName = "budget_config")
@@ -33,7 +35,8 @@ data class BudgetConfigEntity(
     val obligationPercent: Float = 0.50f,
     val pleasurePercent: Float = 0.30f,
     val savingsPercent: Float = 0.20f,
-    val totalHolidays: Int = 25
+    val totalHolidays: Int = 25,
+    val subscriptionNotifyDays: Int = 3
 )
 
 @Entity(tableName = "holidays")
