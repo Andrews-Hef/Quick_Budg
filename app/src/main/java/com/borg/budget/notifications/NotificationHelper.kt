@@ -20,46 +20,42 @@ class NotificationHelper(private val context: Context) {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-                description = "Notifications for budget and subscriptions"
+            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Notifications pour budget et abonnements"
             }
-            val notificationManager: NotificationManager =
-                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(channel)
         }
     }
 
     fun sendBudgetAlert(remainingBudget: Double) {
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_home) // Using existing icon
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_home)
             .setContentTitle("Alerte Budget")
-            .setContentText("Attention, il ne vous reste que %.2f € pour finir le mois.".format(remainingBudget))
+            .setContentText("Il ne vous reste que %.2f € pour finir le mois.".format(remainingBudget))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-
-        with(NotificationManagerCompat.from(context)) {
-            // Check for permission in MainActivity before calling this
-            try {
-                notify(1, builder.build())
-            } catch (e: SecurityException) {
-                // Handle missing permission
-            }
-        }
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(1, notification)
+        } catch (_: SecurityException) {}
     }
 
-    fun sendSubscriptionReminder(subName: String, amount: Double) {
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+    fun sendSubscriptionReminder(subName: String, amount: Double, daysUntil: Int) {
+        val text = when (daysUntil) {
+            0 -> "$subName (%.2f €) est prélevé aujourd'hui.".format(amount)
+            1 -> "$subName sera prélevé demain (%.2f €).".format(amount)
+            else -> "$subName sera débité dans $daysUntil jours (%.2f €).".format(amount)
+        }
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_home)
             .setContentTitle("Prélèvement imminent")
-            .setContentText("Votre abonnement $subName (%.2f €) sera prélevé bientôt.".format(amount))
+            .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-
-        with(NotificationManagerCompat.from(context)) {
-            try {
-                notify(System.currentTimeMillis().toInt(), builder.build())
-            } catch (e: SecurityException) { }
-        }
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
+        } catch (_: SecurityException) {}
     }
 }
