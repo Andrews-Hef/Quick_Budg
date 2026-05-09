@@ -4,22 +4,28 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.borg.budget.data.HolidayEntity
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HolidayScreen(
     holidays: List<HolidayEntity>,
@@ -30,115 +36,107 @@ fun HolidayScreen(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     val holidaysTaken = holidays.sumOf { it.daysCount }
-    val holidaysRemaining = totalQuota - holidaysTaken
+    val holidaysRemaining = (totalQuota - holidaysTaken).coerceAtLeast(0)
+    val progress = if (totalQuota > 0) (holidaysTaken.toFloat() / totalQuota).coerceIn(0f, 1f) else 0f
+    val isOverQuota = holidaysTaken > totalQuota
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Gradient Header - Night Sky for Holidays
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF1A237E), // Deep Blue
-                            Color(0xFF3949AB)
+    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(listOf(Color(0xFF00897B), Color(0xFF4DB6AC))),
+                        RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                    )
+                    .padding(24.dp)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.BeachAccess, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Mes Congés", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                    }
+                    Spacer(Modifier.height(20.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HolidayStatCard(Modifier.weight(1f), "$holidaysTaken", "jours pris", Color.White.copy(alpha = 0.15f))
+                        HolidayStatCard(Modifier.weight(1f), "$holidaysRemaining", "restants",
+                            if (isOverQuota) Color(0xFFEF5350).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.25f),
+                            highlight = true
                         )
-                    ),
-                    shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                )
-                .padding(24.dp)
-        ) {
-            Column {
-                Text(
-                    text = "Mes Congés",
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "$holidaysRemaining",
-                            color = Color.White,
-                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
+                        HolidayStatCard(Modifier.weight(1f), "$totalQuota", "quota total", Color.White.copy(alpha = 0.15f))
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                        color = if (isOverQuota) Color(0xFFEF5350) else Color.White,
+                        trackColor = Color.White.copy(alpha = 0.25f)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "$holidaysTaken / $totalQuota jours utilisés · ${(progress * 100).toInt()}%",
+                        color = Color.White.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+
+            if (holidays.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.BeachAccess,
+                            null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                         )
+                        Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "jours restants",
-                            color = Color.White.copy(alpha = 0.8f),
-                            style = MaterialTheme.typography.labelMedium
+                            "Aucun congé posé",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Appuyez sur + pour en ajouter",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center
                         )
                     }
-                    
-                    Surface(
-                        color = Color.White.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 88.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
                         Text(
-                            text = "Quota : $totalQuota",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelLarge
+                            "Congés posés (${holidays.size})",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
+                    }
+                    items(holidays.sortedByDescending { it.startDate }) { holiday ->
+                        HolidayCard(holiday = holiday, onDelete = { onDeleteHoliday(holiday) })
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
+            containerColor = Color(0xFF00897B),
+            contentColor = Color.White
         ) {
-            Text(
-                text = "Historique des congés",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-            )
-        }
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-        ) {
-            items(holidays) { holiday ->
-                HolidayItem(
-                    holiday = holiday,
-                    onDelete = { onDeleteHoliday(holiday) }
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Button(
-                onClick = { showAddDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A237E))
-            ) {
-                Icon(Icons.Default.Add, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Poser des congés", style = MaterialTheme.typography.titleMedium)
-            }
+            Icon(Icons.Default.Add, contentDescription = "Ajouter des congés")
         }
     }
 
@@ -154,76 +152,173 @@ fun HolidayScreen(
 }
 
 @Composable
-fun HolidayItem(holiday: HolidayEntity, onDelete: () -> Unit) {
-    val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
-    val dateRange = "${dateFormat.format(Date(holiday.startDate))} - ${dateFormat.format(Date(holiday.endDate))}"
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+private fun HolidayStatCard(modifier: Modifier, value: String, label: String, bgColor: Color, highlight: Boolean = false) {
+    Box(
+        modifier = modifier.background(bgColor, RoundedCornerShape(14.dp)).padding(12.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Color(0xFFE8EAF6), RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.DateRange, null, tint = Color(0xFF3949AB))
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(holiday.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-                Text(dateRange, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
-            
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "${holiday.daysCount} j.",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF1A237E)
+                value,
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = if (highlight) FontWeight.ExtraBold else FontWeight.Bold),
+                fontSize = if (highlight) 26.sp else 22.sp
             )
-            
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
-            }
+            Text(label, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
         }
     }
 }
 
 @Composable
-fun AddHolidayDialog(onDismiss: () -> Unit, onConfirm: (String, Long, Long, Int) -> Unit) {
+private fun HolidayCard(holiday: HolidayEntity, onDelete: () -> Unit) {
+    val fmt = SimpleDateFormat("dd MMM", Locale.FRENCH)
+    val start = fmt.format(Date(holiday.startDate))
+    val end = fmt.format(Date(holiday.endDate))
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(52.dp).background(Color(0xFFE0F2F1), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${holiday.daysCount}",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF00897B)
+                    )
+                    Text("j.", fontSize = 10.sp, color = Color(0xFF00897B))
+                }
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(holiday.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.DateRange, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "$start  →  $end",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier.background(Color(0xFFE0F2F1), CircleShape).padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text("${holiday.daysCount} jours", fontSize = 11.sp, color = Color(0xFF00897B), fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddHolidayDialog(onDismiss: () -> Unit, onConfirm: (String, Long, Long, Int) -> Unit) {
     var title by remember { mutableStateOf("") }
     var daysCount by remember { mutableStateOf("") }
-    
-    // Simple mock dates for now - in a real app use a DatePicker
-    val start = System.currentTimeMillis()
-    val end = start + (86400000 * (daysCount.toIntOrNull() ?: 1))
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
+
+    val selectedMillis = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+    val formattedDate = remember(selectedMillis) {
+        SimpleDateFormat("dd/MM/yyyy", Locale.FRENCH).format(Date(selectedMillis))
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Annuler") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Poser des congés") },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.BeachAccess, null, tint = Color(0xFF00897B), modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Poser des congés")
+            }
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Motif (ex: Vacances d'été)") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Motif") },
+                    placeholder = { Text("Vacances d'été, RTT…") },
+                    leadingIcon = { Icon(Icons.Default.Edit, null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
+
+                OutlinedTextField(
+                    value = formattedDate,
+                    onValueChange = {},
+                    label = { Text("Date de début") },
+                    leadingIcon = { Icon(Icons.Default.CalendarToday, null) },
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.EditCalendar, null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
+                    singleLine = true
+                )
+
                 OutlinedTextField(
                     value = daysCount,
-                    onValueChange = { daysCount = it },
+                    onValueChange = { if (it.length <= 3) daysCount = it },
                     label = { Text("Nombre de jours") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    leadingIcon = { Icon(Icons.Default.Schedule, null) },
+                    suffix = { Text("jours") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
+
+                val days = daysCount.toIntOrNull() ?: 0
+                if (days > 0) {
+                    val endMillis = selectedMillis + (86_400_000L * days)
+                    val endFormatted = SimpleDateFormat("dd/MM/yyyy", Locale.FRENCH).format(Date(endMillis))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFE0F2F1)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Info, null, modifier = Modifier.size(14.dp), tint = Color(0xFF00897B))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Du $formattedDate au $endFormatted", style = MaterialTheme.typography.labelSmall, color = Color(0xFF00695C))
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -231,13 +326,14 @@ fun AddHolidayDialog(onDismiss: () -> Unit, onConfirm: (String, Long, Long, Int)
                 onClick = {
                     val days = daysCount.toIntOrNull() ?: 0
                     if (title.isNotBlank() && days > 0) {
-                        onConfirm(title, start, end, days)
+                        val endMillis = selectedMillis + (86_400_000L * days)
+                        onConfirm(title, selectedMillis, endMillis, days)
                     }
-                }
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B))
             ) { Text("Confirmer") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
-        }
+        dismissButton = { TextButton(onDismiss) { Text("Annuler") } }
     )
 }

@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BudgetDao {
-    // Transactions
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 
@@ -15,9 +14,14 @@ interface BudgetDao {
     @Delete
     suspend fun deleteTransaction(transaction: TransactionEntity)
 
-    // Subscriptions
+    @Query("SELECT * FROM transactions WHERE subscriptionId = :subId AND timestamp >= :start AND timestamp < :end")
+    suspend fun getSubscriptionTransactionsInRange(subId: String, start: Long, end: Long): List<TransactionEntity>
+
     @Query("SELECT * FROM subscriptions WHERE isActive = 1")
     fun getActiveSubscriptions(): Flow<List<SubscriptionEntity>>
+
+    @Query("SELECT * FROM subscriptions WHERE isActive = 1")
+    suspend fun getActiveSubscriptionsList(): List<SubscriptionEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubscription(subscription: SubscriptionEntity)
@@ -25,14 +29,18 @@ interface BudgetDao {
     @Update
     suspend fun updateSubscription(subscription: SubscriptionEntity)
 
-    // Budget Config
+    @Delete
+    suspend fun deleteSubscription(subscription: SubscriptionEntity)
+
     @Query("SELECT * FROM budget_config WHERE id = 0")
     fun getBudgetConfig(): Flow<BudgetConfigEntity?>
+
+    @Query("SELECT * FROM budget_config WHERE id = 0")
+    suspend fun getBudgetConfigOnce(): BudgetConfigEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun updateBudgetConfig(config: BudgetConfigEntity)
 
-    // Holidays
     @Query("SELECT * FROM holidays ORDER BY startDate DESC")
     fun getAllHolidays(): Flow<List<HolidayEntity>>
 
