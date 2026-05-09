@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,14 +34,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Quick_BudgApp(viewModel: BudgetViewModel) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.DASHBOARD) }
+    var showHolidays by rememberSaveable { mutableStateOf(false) }
 
     val budgetConfig by viewModel.budgetConfig.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val subscriptions by viewModel.subscriptions.collectAsState()
     val holidays by viewModel.holidays.collectAsState()
+
+    if (showHolidays) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Congés") },
+                    navigationIcon = {
+                        IconButton(onClick = { showHolidays = false }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Retour")
+                        }
+                    }
+                )
+            }
+        ) { innerPadding ->
+            HolidayScreen(
+                holidays = holidays,
+                totalQuota = budgetConfig.totalHolidays,
+                onAddHoliday = { title, start, end, days -> viewModel.addHoliday(title, start, end, days) },
+                onDeleteHoliday = { viewModel.deleteHoliday(it) },
+                modifier = Modifier.padding(innerPadding)
+            )
+        }
+        return
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -62,6 +89,7 @@ fun Quick_BudgApp(viewModel: BudgetViewModel) {
                     subscriptions = subscriptions,
                     holidays = holidays,
                     totalHolidayQuota = budgetConfig.totalHolidays,
+                    onNavigateToHolidays = { showHolidays = true },
                     modifier = Modifier.padding(innerPadding)
                 )
                 AppDestinations.BUDGET -> BudgetScreen(
@@ -92,15 +120,6 @@ fun Quick_BudgApp(viewModel: BudgetViewModel) {
                     transactions = transactions,
                     modifier = Modifier.padding(innerPadding)
                 )
-                AppDestinations.HOLIDAYS -> HolidayScreen(
-                    holidays = holidays,
-                    totalQuota = budgetConfig.totalHolidays,
-                    onAddHoliday = { title, start, end, days ->
-                        viewModel.addHoliday(title, start, end, days)
-                    },
-                    onDeleteHoliday = { viewModel.deleteHoliday(it) },
-                    modifier = Modifier.padding(innerPadding)
-                )
             }
         }
     }
@@ -109,8 +128,7 @@ fun Quick_BudgApp(viewModel: BudgetViewModel) {
 enum class AppDestinations(val label: String, val icon: ImageVector) {
     DASHBOARD("Accueil", Icons.Default.Home),
     BUDGET("Budget", Icons.Default.Payments),
-    EXPENSES("Dépenses", Icons.AutoMirrored.Filled.ReceiptLong),
-    SUBSCRIPTIONS("Abonnements", Icons.Default.Autorenew),
-    CALENDAR("Calendrier", Icons.Default.CalendarMonth),
-    HOLIDAYS("Congés", Icons.Default.BeachAccess),
+    EXPENSES("Saisie", Icons.AutoMirrored.Filled.ReceiptLong),
+    SUBSCRIPTIONS("Abos", Icons.Default.Autorenew),
+    CALENDAR("Agenda", Icons.Default.CalendarMonth),
 }

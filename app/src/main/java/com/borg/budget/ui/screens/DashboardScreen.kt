@@ -1,5 +1,6 @@
 package com.borg.budget.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +32,7 @@ fun DashboardScreen(
     subscriptions: List<SubscriptionEntity>,
     holidays: List<HolidayEntity>,
     totalHolidayQuota: Int,
+    onNavigateToHolidays: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val calendar = Calendar.getInstance()
@@ -164,7 +166,7 @@ fun DashboardScreen(
 
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToHolidays() },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -182,6 +184,8 @@ fun DashboardScreen(
                             Text("$holidaysRemaining jours restants", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                         }
                         Text("$holidaysTaken pris", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
+                        Spacer(Modifier.width(8.dp))
+                        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
                     }
                 }
             }
