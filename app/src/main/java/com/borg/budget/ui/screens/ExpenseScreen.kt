@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,12 +24,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.borg.budget.data.TransactionEntity
 import com.borg.budget.ui.models.ExpenseCategory
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun ExpenseScreen(
@@ -38,13 +42,35 @@ fun ExpenseScreen(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var displayedCalendar by remember {
+        mutableStateOf(Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        })
+    }
     val context = LocalContext.current
+
+    val year = displayedCalendar.get(Calendar.YEAR)
+    val month = displayedCalendar.get(Calendar.MONTH)
+
+    val monthLabel = remember(year, month) {
+        SimpleDateFormat("MMMM yyyy", Locale.FRENCH).format(displayedCalendar.time)
+            .replaceFirstChar { it.uppercase() }
+    }
+
+    val monthlyTransactions = remember(transactions, year, month) {
+        transactions.filter { tx ->
+            val cal = Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+            cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month
+        }
+    }
+
+    val totalSpentThisMonth = monthlyTransactions.sumOf { it.amount }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) showScanner = true
-    }
+    ) { isGranted -> if (isGranted) showScanner = true }
 
     if (showScanner) {
         ScannerScreen(
@@ -54,87 +80,103 @@ fun ExpenseScreen(
             },
             onClose = { showScanner = false }
         )
-    } else {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+        return
+    }
+
+    Column(
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.secondaryContainer)),
+                    RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
+                )
+                .padding(24.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.secondary,
-                                MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ),
-                        shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                    )
-                    .padding(24.dp)
-            ) {
-                Column {
-                    Text("Suivi des Dépenses", color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(16.dp))
-                    
-                    ExpenseCategory.entries.forEach { cat ->
-                        val allocated = totalIncome * cat.percentage
-                        val spent = transactions.filter { it.category == cat.name }.sumOf { it.amount }
-                        ProfessionalProgressRow(cat, spent, allocated)
+            Column {
+                Text("Historique mensuel", color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text("%.2f €".format(totalSpentThisMonth), color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = {
+                        displayedCalendar = (displayedCalendar.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = MaterialTheme.colorScheme.onSecondary)
+                    }
+                    Text(monthLabel, color = MaterialTheme.colorScheme.onSecondary, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    IconButton(onClick = {
+                        displayedCalendar = (displayedCalendar.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onSecondary)
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Transactions récentes", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-                
-                // OCR Button
-                FilledIconButton(
-                    onClick = {
-                        when (PackageManager.PERMISSION_GRANTED) {
-                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) -> {
-                                showScanner = true
-                            }
-                            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Icon(Icons.Default.PhotoCamera, "Scanner un ticket")
+                ExpenseCategory.entries.forEach { cat ->
+                    val allocated = totalIncome * cat.percentage
+                    val spent = monthlyTransactions.filter { it.category == cat.name }.sumOf { it.amount }
+                    ProfessionalProgressRow(cat, spent, allocated)
                 }
             }
+        }
 
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Transactions (${monthlyTransactions.size})", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+            FilledIconButton(
+                onClick = {
+                    when (PackageManager.PERMISSION_GRANTED) {
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) -> showScanner = true
+                        else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                },
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Icon(Icons.Default.PhotoCamera, null)
+            }
+        }
+
+        if (monthlyTransactions.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("Aucune dépense ce mois-ci", color = MaterialTheme.colorScheme.outline)
+            }
+        } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
             ) {
-                items(transactions) { transaction ->
-                    ProfessionalExpenseItem(
-                        transaction = transaction,
-                        onDelete = { onDeleteTransaction(transaction) }
-                    )
+                items(monthlyTransactions) { transaction ->
+                    ProfessionalExpenseItem(transaction = transaction, onDelete = { onDeleteTransaction(transaction) })
                 }
             }
+        }
 
-            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                Button(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                ) {
-                    Icon(Icons.Default.Add, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Nouvelle transaction", style = MaterialTheme.typography.titleMedium)
-                }
+        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Nouvelle dépense", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
@@ -155,8 +197,8 @@ fun ProfessionalProgressRow(category: ExpenseCategory, spent: Double, allocated:
     val progress = if (allocated > 0) (spent / allocated).toFloat() else 0f
     val isOver = spent > allocated
     val statusColor = if (isOver) Color(0xFFEF5350) else Color.White
-    
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(category.label, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
             Text("%.2f / %.0f €".format(spent, allocated), color = statusColor, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
@@ -174,31 +216,43 @@ fun ProfessionalProgressRow(category: ExpenseCategory, spent: Double, allocated:
 @Composable
 fun ProfessionalExpenseItem(transaction: TransactionEntity, onDelete: () -> Unit) {
     val category = ExpenseCategory.entries.find { it.name == transaction.category } ?: ExpenseCategory.OBLIGATION
-    val categoryIcon = when(category) {
-        ExpenseCategory.OBLIGATION -> Icons.Default.ReceiptLong
+    val categoryIcon = when (category) {
+        ExpenseCategory.OBLIGATION -> Icons.AutoMirrored.Filled.ReceiptLong
         ExpenseCategory.PLEASURE -> Icons.Default.Celebration
         ExpenseCategory.SAVING_DEBT -> Icons.Default.AccountBalance
     }
+    val date = SimpleDateFormat("dd/MM", Locale.FRENCH).format(Date(transaction.timestamp))
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f), CircleShape), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(categoryIcon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(transaction.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(category.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text("• $date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                     if (transaction.isSubscription) {
-                        Box(Modifier.padding(start = 8.dp).background(Color(0xFFE8F5E9), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                        Box(Modifier.background(Color(0xFFE8F5E9), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp)) {
                             Text("ABO", fontSize = 9.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
             Text("- %.2f €".format(transaction.amount), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.error)
-            IconButton(onClick = onDelete) { Icon(Icons.Default.Close, null, tint = Color.LightGray, modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Close, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
@@ -217,7 +271,13 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onConfirm: (String, Double, ExpenseC
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Titre") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Montant") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(), prefix = { Text("€ ") })
+                OutlinedTextField(
+                    value = amount, onValueChange = { amount = it },
+                    label = { Text("Montant") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    prefix = { Text("€ ") }
+                )
                 Text("Catégorie :", style = MaterialTheme.typography.labelLarge)
                 Column {
                     ExpenseCategory.entries.forEach { cat ->
