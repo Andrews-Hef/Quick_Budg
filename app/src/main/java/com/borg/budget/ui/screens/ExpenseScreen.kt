@@ -139,7 +139,7 @@ fun ExpenseScreen(
                     trackColor = Color.White.copy(alpha = 0.2f)
                 )
                 Spacer(Modifier.height(4.dp))
-                Text("%.0f € restant • ${(globalProgress * 100).toInt()}% utilisé".format(totalIncome - totalSpent), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
+                Text("%.0f € restant • %d%% utilisé".format(totalIncome - totalSpent, (globalProgress * 100).toInt()), color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
             }
         }
 
